@@ -1,0 +1,25 @@
+name: Checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Get matching upstream fixtures
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/ilyamiro/serpantinum.git /tmp/serpantinum
+          git -C /tmp/serpantinum checkout a304a330e4a32ab78f491a02fb9b4b06672d1760 -- src/quickshell/bar/BarModuleRegistry.qml src/quickshell/WindowRegistry.js src/quickshell/guide/bar/BarGeneralTab.qml
+      - name: Validate installer and helpers
+        env:
+          SERPANTINUM_TEST_SOURCE: /tmp/serpantinum/src
+        run: |
+          bash -n install.sh
+          python -m compileall -q tools overlay/scripts tests
+          node --check overlay/scripts/happ-read.cjs
+          node tests/test-happ-adapter.cjs
+          python -m unittest discover -s tests -v

@@ -1,0 +1,2 @@
+singleton VpnStatus 1.0 VpnStatus.qml
+VpnLocations 1.0 VpnLocations.qml

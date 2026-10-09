@@ -1,0 +1,15 @@
+Serpantinum VPN
+An independent addon. Not affiliated with Serpantinum or Happ.
+
+Derived QML files and registry/settings changes are based on Serpantinum:
+https://github.com/ilyamiro/serpantinum
+Base revision: a304a330e4a32ab78f491a02fb9b4b06672d1760
+Copyright (C) 2026 Illia Miroshnichenko
+License: GNU Affero General Public License, version 3 or later.
+
+Addon modifications and installer: Serpantinum VPN contributors, 2026.
+Distributed under the same AGPL-3.0-or-later license.
+
+Happ is an external application by Happ-proxy:
+https://github.com/Happ-proxy/happ-desktop
+No Happ binaries or subscriptions are redistributed here.

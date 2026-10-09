@@ -1,0 +1,10 @@
+{
+  "serpantinum_revision": "a304a330e4a32ab78f491a02fb9b4b06672d1760",
+  "serpantinum_version": "2.2.5-1",
+  "happ_version": "4.4.8",
+  "base_files": {
+    "quickshell/bar/BarModuleRegistry.qml": "0562b5fcaf81cc315125b71403fda2573c1bad466c9e56520005b97b6d0cd186",
+    "quickshell/WindowRegistry.js": "4ad2f54d798604e8daf43ed910dd29085d047fa7d38df332c6fea6199410a8de",
+    "quickshell/guide/bar/BarGeneralTab.qml": "01ee3129ee8c6473b9ed3de28ff2ea977a959bec9737b6ad59b497afe0ff215e"
+  }
+}
