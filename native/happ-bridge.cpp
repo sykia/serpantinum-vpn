@@ -11,6 +11,27 @@
 #include <dlfcn.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cstdlib>
+#include <string>
+
+// The adapter belongs to Happ only. Its child processes keep other user preloads.
+__attribute__((constructor)) static void clearChildPreload() {
+    Dl_info info{};
+    const char *raw = getenv("LD_PRELOAD");
+    if (!raw || !dladdr(reinterpret_cast<void *>(&clearChildPreload), &info) || !info.dli_fname) return;
+    std::string input(raw), output;
+    size_t start = 0;
+    bool removed = false;
+    while (start <= input.size()) {
+        const size_t end = input.find(':', start);
+        const std::string item = input.substr(start, end == std::string::npos ? end : end - start);
+        if (item == info.dli_fname) removed = true;
+        else if (!item.empty()) { if (!output.empty()) output += ':'; output += item; }
+        if (end == std::string::npos) break;
+        start = end + 1;
+    }
+    if (removed) { if (output.empty()) unsetenv("LD_PRELOAD"); else setenv("LD_PRELOAD", output.c_str(), 1); }
+}
 
 static bool scheduled = false;
 static QPointer<QObject> controller;

@@ -18,6 +18,14 @@ control = module('overlay/scripts/vpn-control.py', 'control')
 bridge = module('overlay/scripts/vpn-bridge.py', 'bridge')
 
 class RuntimeTests(unittest.TestCase):
+    def test_shell_children_find_addon_cli_and_keep_system_dependencies(self):
+        with patch.object(runtime.installer, 'wrapper_info', return_value=([('PATH', ':', '/system/dependencies')], {}, Path('/system/daemon'))), patch.object(runtime.os, 'execve') as execute:
+            runtime.execute(Path('/system/wrapper'), Path('/addon/shell'), ['start'])
+        environment = execute.call_args.args[2]
+        self.assertTrue(environment['PATH'].startswith(str(runtime.HOME / '.local/bin') + ':'))
+        self.assertIn('/system/dependencies', environment['PATH'])
+        self.assertEqual(environment['MAIN_QML'], '/addon/shell/quickshell/Shell.qml')
+
     def test_overlay_preserves_upstream_changes_and_rejects_missing_anchor(self):
         baseline = os.environ.get('SERPANTINUM_TEST_SOURCE')
         if not baseline: self.skipTest('Set SERPANTINUM_TEST_SOURCE')

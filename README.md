@@ -66,7 +66,7 @@ bash install.sh --dry-run
 bash install.sh
 ```
 
-Можно скачать архив `serpantinum-vpn-0.2.0.tar.gz` из [релиза](https://github.com/sykia/serpantinum-vpn/releases/tag/v0.2.0),
+Можно скачать архив `serpantinum-vpn-0.2.1.tar.gz` из [релиза](https://github.com/sykia/serpantinum-vpn/releases/tag/v0.2.1),
 распаковать его и запустить тот же `install.sh`.
 
 На Arch дополнительные зависимости устанавливаются так:

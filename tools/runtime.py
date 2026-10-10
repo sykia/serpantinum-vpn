@@ -78,7 +78,7 @@ def execute(binary, target, arguments):
     env['SERPANTINUM_DIR'] = str(target)
     # Do not keep MAIN_QML from another shell generation.
     env['MAIN_QML'] = str(target / 'quickshell/Shell.qml')
-    env['PATH'] = str(Path(sys.executable).parent) + ':' + env.get('PATH', '')
+    env['PATH'] = str(HOME / '.local/bin') + ':' + str(Path(sys.executable).parent) + ':' + env.get('PATH', '')
     os.execve(entry, [str(entry), *arguments], env)
 
 def route_commands():

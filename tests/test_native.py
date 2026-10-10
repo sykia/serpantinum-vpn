@@ -30,6 +30,7 @@ class NativeBridgeTests(unittest.TestCase):
                         return json.loads(response)
                 self.assertTrue(request({'action':'status'})['ok'])
                 self.assertFalse(log.exists())
+                self.assertEqual((Path(tmp) / 'child-preload').read_text(), '')
                 self.assertFalse(request({'action':'disconnect'})['ok'])
                 self.assertFalse(request({'action':'select','subscriptionId':1.5,'serverId':2})['ok'])
                 self.assertFalse(log.exists())

@@ -399,6 +399,7 @@ def upgrade(args, paths):
             except Exception:
                 saved.rename(package)
                 raise
+            atomic_write(target / 'vpn-addon-version', (REPO / 'VERSION').read_text())
         finally:
             if stage.exists(): shutil.rmtree(stage)
     print('Пакет дополнения обновлён. Загрузится при следующем запуске оболочки. VPN не изменён.')

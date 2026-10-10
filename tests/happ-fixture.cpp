@@ -16,6 +16,8 @@ public slots:
 };
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    QFile preload(qEnvironmentVariable("XDG_RUNTIME_DIR") + "/child-preload");
+    if (preload.open(QIODevice::WriteOnly)) preload.write(qgetenv("LD_PRELOAD"));
     TMainObject controller;
     QCoreApplication::postEvent(&controller, new QEvent(QEvent::User));
     QTimer::singleShot(10000, &app, &QCoreApplication::quit);
