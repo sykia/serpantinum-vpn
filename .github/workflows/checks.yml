@@ -23,3 +23,11 @@ jobs:
           node --check overlay/scripts/happ-read.cjs
           node tests/test-happ-adapter.cjs
           python -m unittest discover -s tests -v
+      - name: Install Qt build dependencies
+        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev pkg-config g++
+      - name: Test native controller without a VPN
+        run: |
+          bash native/build.sh /tmp/libserpantinum-vpn-happ.so
+          /usr/lib/qt6/libexec/moc tests/happ-fixture.cpp -o /tmp/happ-fixture.moc
+          c++ -std=c++17 tests/happ-fixture.cpp -I/tmp $(pkg-config --cflags --libs Qt6Core) -o /tmp/happ-fixture
+          HAPP_BRIDGE_TEST_BINARY=/tmp/happ-fixture HAPP_BRIDGE_TEST_LIBRARY=/tmp/libserpantinum-vpn-happ.so python -m unittest discover -s tests -p test_native.py -v

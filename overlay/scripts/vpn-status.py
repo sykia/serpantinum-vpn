@@ -21,5 +21,12 @@ for process in Path('/proc').iterdir():
             break
     except OSError:
         pass
-print(json.dumps({'connected': connected, 'location': location,
+spec = importlib.util.spec_from_file_location('bridge', Path(__file__).with_name('vpn-bridge.py'))
+bridge = importlib.util.module_from_spec(spec); spec.loader.exec_module(bridge)
+try:
+    bridge.request({'action': 'status'})
+    can_select = True
+except RuntimeError:
+    can_select = False
+print(json.dumps({'canSelect': can_select, 'subscriptionId': config.get('Preferences', 'lastSubscription', fallback=''), 'connected': connected, 'location': location,
     'serverId': config.get('Preferences', 'lastServer', fallback='')}, ensure_ascii=False))

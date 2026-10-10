@@ -11,7 +11,7 @@
 An independent addon for [Serpantinum](https://github.com/ilyamiro/serpantinum),
 using [Happ](https://github.com/Happ-proxy/happ-desktop) as its first supported client.
 It adds a VPN bar module, an animated connection panel, location search and TCP latency checks.
-The central button sends Happ connect/disconnect deep links. Server selection happens in Happ.
+The central button sends Happ connect/disconnect deep links. An optional native Qt 6 adapter selects servers directly from the popup after the next normal Happ launch. Installation never injects code into the running client.
 
 ## Requirements
 
@@ -51,7 +51,7 @@ The full guide includes Home Manager overrides, manual compositor startup and re
 
 ## Updates and removal
 
-The addon snapshot survives normal package updates, but it does not automatically receive upstream changes.
+At each shell launch the addon composes its small integration patches with the currently installed Serpantinum. Upstream changes are preserved. If integration anchors change, the regular shell starts and addon files remain intact. Update the addon with `bash install.sh --upgrade`. Hyprland command routing is restored at startup; other compositors should bind `~/.local/bin/serpantinum-vpn`.
 Nix GC roots retain required package paths. Location decoding relies on a **private Happ database format**,
 not a public API; newer Happ versions may need a new adapter.
 
@@ -74,3 +74,22 @@ Serpantinum and its original components: **Illia Miroshnichenko / ilyamiro**.
 Happ: **Happ-proxy**. This project is unofficial and not affiliated with either project.
 Happ binaries, subscriptions and credentials are not distributed.
 License: **AGPL-3.0-or-later**, preserving upstream attribution. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+## Native server selection (experimental)
+
+Build with C++, pkg-config and the exact Qt 6 runtime used by Happ:
+
+```bash
+bash native/build.sh
+bash install.sh --happ-bridge "$PWD/native/libserpantinum-vpn-happ.so"
+# Existing installation:
+# bash install.sh --upgrade --happ-bridge "$PWD/native/libserpantinum-vpn-happ.so"
+```
+
+The optional library loads only at the next normal Happ start. Do not restart your
+client if you need to preserve its current connection. A Qt runtime mismatch skips
+the adapter and starts Happ normally; rebuild for the new Qt to restore selection.
+The local socket is restricted to the desktop user. Loading and status queries do
+not select a server. An explicit popup click invokes Happ's own `startServer(int,int)`
+on its GUI thread. Repeated selection is a no-op and errors are displayed.
+The adapter was tested with a synthetic Qt controller, not by switching a live VPN.

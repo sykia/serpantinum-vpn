@@ -1,0 +1,36 @@
+{
+  "quickshell/bar/BarModuleRegistry.qml": [
+    {
+      "old": "            verticalFace: \"faces/kb/SideKbFace.qml\"\n        },\n        \"wifi\": {\n            name: typeof I18n !== \"undefined\" ? I18n.t(\"guide.bar.modules.network\", \"Network\") : \"Network\",\n",
+      "new": "            verticalFace: \"faces/kb/SideKbFace.qml\"\n        },\n        \"vpn\": { name: \"VPN\", icon: \"󰦝\", defaultVariant: \"default\", horizontalFace: \"faces/vpn/VpnFace.qml\", verticalFace: \"faces/vpn/SideVpnFace.qml\" },\n        \"wifi\": {\n            name: typeof I18n !== \"undefined\" ? I18n.t(\"guide.bar.modules.network\", \"Network\") : \"Network\",\n"
+    }
+  ],
+  "quickshell/WindowRegistry.js": [
+    {
+      "old": "            icon: \"preferences-desktop-wallpaper\",\n            fontIcon: \"󰸉\"\n        },\n        {\n",
+      "new": "            icon: \"preferences-desktop-wallpaper\",\n            fontIcon: \"󰸉\"\n        },\n        {\n            id: \"vpn\", name: \"VPN\", description: \"Happ VPN\", icon: \"network-vpn\", fontIcon: \"󰦝\"\n        },\n        {\n"
+    },
+    {
+      "old": "\n    let base = {\n        \"network\": { \n            w: 720, h: 600, comp: \"network/NetworkPopup.qml\", \n",
+      "new": "\n    let base = {\n        \"vpn\": { w: 720, h: 600, comp: \"vpn/VpnPopup.qml\", pos: { \"top\": { anchor: \"top-right\", mt: 52, mr: 4 }, \"bottom\": { anchor: \"bottom-right\", mb: 52, mr: 4 }, \"left\": { anchor: \"bottom-left\", ml: 52, mb: 4 }, \"right\": { anchor: \"bottom-right\", mr: 52, mb: 4 } } },\n        \"network\": { \n            w: 720, h: 600, comp: \"network/NetworkPopup.qml\", \n"
+    }
+  ],
+  "quickshell/guide/bar/BarGeneralTab.qml": [
+    {
+      "old": "            \"sysmon\": I18n.t(\"guide.bar.modules.sysmon\"),\n            \"kb\": I18n.t(\"guide.bar.modules.keyboard\"),\n            \"wifi\": I18n.t(\"guide.bar.modules.network\"),\n            \"bt\": I18n.t(\"guide.bar.modules.bluetooth\"),\n",
+      "new": "            \"sysmon\": I18n.t(\"guide.bar.modules.sysmon\"),\n            \"kb\": I18n.t(\"guide.bar.modules.keyboard\"),\n            \"vpn\": \"VPN\",\n            \"wifi\": I18n.t(\"guide.bar.modules.network\"),\n            \"bt\": I18n.t(\"guide.bar.modules.bluetooth\"),\n"
+    },
+    {
+      "old": "            \"sysmon\": \"󰍛\",\n            \"kb\": \"󰌌\",\n            \"wifi\": \"󰤨\",\n            \"bt\": \"󰂲\",\n",
+      "new": "            \"sysmon\": \"󰍛\",\n            \"kb\": \"󰌌\",\n            \"vpn\": \"󰦝\",\n            \"wifi\": \"󰤨\",\n            \"bt\": \"󰂲\",\n"
+    },
+    {
+      "old": "            \"sysmon\": ThemeBackend.mauve,\n            \"kb\": ThemeBackend.text,\n            \"wifi\": ThemeBackend.blue,\n            \"bt\": ThemeBackend.mauve,\n",
+      "new": "            \"sysmon\": ThemeBackend.mauve,\n            \"kb\": ThemeBackend.text,\n            \"vpn\": ThemeBackend.blue,\n            \"wifi\": ThemeBackend.blue,\n            \"bt\": ThemeBackend.mauve,\n"
+    },
+    {
+      "old": "                            if (moduleId === \"sysmon\") return I18n.t(\"guide.bar.modules.sysmon\");\n                            if (moduleId === \"kb\") return I18n.t(\"guide.bar.modules.keyboard\");\n                            if (moduleId === \"wifi\") return I18n.t(\"guide.bar.modules.network\");\n                            if (moduleId === \"bt\") return I18n.t(\"guide.bar.modules.bluetooth\");\n",
+      "new": "                            if (moduleId === \"sysmon\") return I18n.t(\"guide.bar.modules.sysmon\");\n                            if (moduleId === \"kb\") return I18n.t(\"guide.bar.modules.keyboard\");\n                            if (moduleId === \"vpn\") return \"VPN\";\n                            if (moduleId === \"wifi\") return I18n.t(\"guide.bar.modules.network\");\n                            if (moduleId === \"bt\") return I18n.t(\"guide.bar.modules.bluetooth\");\n"
+    }
+  ]
+}

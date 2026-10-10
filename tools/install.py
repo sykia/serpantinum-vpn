@@ -3,6 +3,7 @@
 import argparse
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -198,14 +199,18 @@ def install(args, paths):
     target, state, config, bin_dir = paths
     manifest = state / 'installation.json'
     if manifest.exists():
-        print('Дополнение уже установлено. Перед другой версией выполните --uninstall.')
-        return
+        raise RuntimeError('Уже установлено. Для обновления используйте --upgrade.')
     if target.exists():
         raise RuntimeError(f'{target} уже существует без manifest этого установщика. '
                            'Каталог не изменён. Укажите новый каталог через --target.')
     daemon = resolve_command(args.daemon)
     source = Path(args.source).expanduser().resolve() if args.source else detect_source(daemon)
-    validate_source(source)
+    # Validate integration anchors without overwriting any upstream file.
+    for name, changes in json.loads((REPO / 'patches.json').read_text()).items():
+        content = (source / name).read_text()
+        for change in changes:
+            if content.count(change['old']) != 1:
+                raise RuntimeError('Несовместимый Serpantinum: ' + name)
     prefixes, _, daemon_entry = wrapper_info(daemon)
     python = sys.executable
     node = locate_dependency('node', prefixes)
@@ -242,31 +247,36 @@ def install(args, paths):
         target.parent.mkdir(parents=True, exist_ok=True)
         stage = Path(tempfile.mkdtemp(prefix='.serpantinum-vpn-', dir=target.parent))
         shutil.copytree(source, stage, dirs_exist_ok=True)
+        stage.chmod(stage.stat().st_mode | 0o200)
         # Nix store modes are read-only. Retain execute bits while making the copy editable.
         for file in stage.rglob('*'):
             if not file.is_symlink():
                 os.chmod(file, stat.S_IMODE(file.stat().st_mode) | stat.S_IWUSR)
-        shutil.copytree(REPO / 'overlay', stage, dirs_exist_ok=True)
-        # Freeze plain Arch/source launch scripts too, so upstream updates or
-        # removal of the source checkout cannot change the addon daemon.
-        for entry, name, env_prefix in [(daemon_entry, 'serpantinumd', prefixes),
-                                        (cli_entry, 'serpantinum', cli_prefixes)]:
-            if not env_prefix and entry.read_bytes().startswith(b'#!'):
-                destination = stage / 'addon-bin' / name
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(entry, destination)
-                destination.chmod(0o755)
-                if name == 'serpantinumd':
-                    daemon_entry = target / 'addon-bin' / name
-                else:
-                    cli_entry = target / 'addon-bin' / name
-        (stage / 'vpn-addon-version').write_text('0.1.0\n')
+        spec = importlib.util.spec_from_file_location('runtime', REPO / 'tools/runtime.py')
+        runtime_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runtime_module)
+        runtime_module.apply_overlay(source, stage)
+        package = stage / 'addon-package'
+        for name in ['tools', 'overlay', 'native']:
+            shutil.copytree(REPO / name, package / name, ignore=shutil.ignore_patterns('__pycache__', '*.so'))
+        for name in ['patches.json', 'compatibility.json', 'VERSION']:
+            shutil.copy2(REPO / name, package / name)
+        (package / 'commands.json').write_text(json.dumps({'daemon': args.daemon, 'cli': args.cli, 'source': args.source}))
+        if args.happ_bridge:
+            shutil.copy2(args.happ_bridge, package / 'native/libserpantinum-vpn-happ.so')
+        (stage / 'vpn-addon-version').write_text((REPO / 'VERSION').read_text())
         stage.rename(target)
         published = True
         for pinned, name in [(daemon, 'serpantinum'), (happ_binary, 'happ'), (Path(node), 'node'), (Path(python), 'python')]:
             root = pin_nix(pinned, state / 'roots' / name)
             if root:
                 roots.append(root)
+        if args.happ_bridge:
+            linked = subprocess.run(['ldd', str(args.happ_bridge)], capture_output=True, text=True, check=True)
+            packages = {Path(p) for p in re.findall(r'(/nix/store/[^/\s]+)', linked.stdout)}
+            for index, package in enumerate(sorted(packages)):
+                root = pin_nix(package, state / 'roots' / ('bridge-' + str(index)))
+                if root: roots.append(root)
         runtime = {'happ': str(happ), 'happ_binary': str(happ_binary), 'node': node,
                    'happ_core': str(happ_binary.parent / 'core/xray')}
         if args.happ_config:
@@ -275,22 +285,26 @@ def install(args, paths):
             runtime['happ_database'] = str(Path(args.happ_database).expanduser().resolve())
         tx.write(config / 'serpantinum-vpn/runtime.json', json.dumps(runtime, indent=2) + '\n')
         start = bin_dir / 'serpantinum-vpn-start'
-        command = launcher(target, daemon_entry, prefixes, python, config)
-        command = command.replace(' "$@"\n', ' start\n')
+        runtime_entry = target / 'addon-package/tools/runtime.py'
+        launch_env = '#!/usr/bin/env bash\nexport XDG_CONFIG_HOME=' + shlex.quote(str(config)) + '\nexport SERPANTINUM_VPN_STATE_DIR=' + shlex.quote(str(state)) + '\n'
+        command = launch_env + 'exec ' + shlex.quote(python) + ' ' + shlex.quote(str(runtime_entry)) + ' start\n'
         tx.write(start, command, 0o755)
-        tx.write(bin_dir / 'serpantinum-vpn', launcher(target, cli_entry, cli_prefixes, python, config), 0o755)
+        cli_script = launch_env + 'exec ' + shlex.quote(python) + ' ' + shlex.quote(str(runtime_entry)) + ' cli "$@"\n'
+        tx.write(bin_dir / 'serpantinum-vpn', cli_script, 0o755)
+        tx.write(bin_dir / 'serpantinum', cli_script, 0o755)
+        tx.write(state / 'active.json', json.dumps({'target': str(target)}))
         tx.write(settings_file, json.dumps(settings, ensure_ascii=False, indent=2) + '\n')
         if not args.no_systemd:
-            dropin = config / 'systemd/user/serpantinum.service.d/vpn-addon.conf'
+            dropin = config / 'systemd/user/serpantinum.service.d/zz-vpn-addon.conf'
             tx.write(dropin, '[Service]\nExecStart=\nExecStart="' + service_escape(bash) + '" "' + service_escape(start) + '"\n')
             if subprocess.run(['systemctl', '--user', 'cat', 'serpantinum.service'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
                 unit = '[Unit]\nDescription=Serpantinum with VPN addon\nPartOf=graphical-session.target\nAfter=graphical-session.target\n\n[Service]\nType=simple\nExecStart="' + service_escape(bash) + '" "' + service_escape(start) + '"\nRestart=on-failure\n\n[Install]\nWantedBy=graphical-session.target\n'
                 tx.write(config / 'systemd/user/serpantinum.service', unit)
             if not args.no_happ_autostart:
                 auto = bin_dir / 'serpantinum-vpn-happ-autostart'
-                auto_script = '#!/usr/bin/env bash\nset -euo pipefail\nexport XDG_CONFIG_HOME=' + shlex.quote(str(config)) + '\nexec ' + shlex.quote(python) + ' ' + shlex.quote(str(target / 'scripts/vpn-autostart.py')) + '\n'
+                auto_script = '#!/usr/bin/env bash\nset -euo pipefail\nexport XDG_CONFIG_HOME=' + shlex.quote(str(config)) + '\nexec ' + shlex.quote(python) + ' ' + shlex.quote(str(target / 'addon-package/tools/happ-launch.py')) + '\n'
                 tx.write(auto, auto_script, 0o755)
-                tx.write(config / 'systemd/user/happ.service.d/vpn-addon.conf', '[Service]\nExecStart=\nExecStart="' + service_escape(bash) + '" "' + service_escape(auto) + '"\n')
+                tx.write(config / 'systemd/user/happ.service.d/zz-vpn-addon.conf', '[Service]\nExecStart=\nExecStart="' + service_escape(bash) + '" "' + service_escape(auto) + '"\n')
                 if subprocess.run(['systemctl', '--user', 'cat', 'happ.service'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
                     tx.write(config / 'systemd/user/happ.service', '[Unit]\nDescription=Happ auto-connect\nPartOf=graphical-session.target\nAfter=graphical-session.target\n\n[Service]\nExecStart="' + service_escape(bash) + '" "' + service_escape(auto) + '"\n\n[Install]\nWantedBy=graphical-session.target\n')
             subprocess.run(['systemctl', '--user', 'daemon-reload'], check=True)
@@ -299,7 +313,8 @@ def install(args, paths):
             for service in services:
                 before = subprocess.run(['systemctl', '--user', 'is-enabled', service], capture_output=True, text=True)
                 enabled_before[service] = before.stdout.strip()
-                subprocess.run(['systemctl', '--user', 'enable', service], check=True)
+                if enabled_before[service] not in ('enabled', 'enabled-runtime'):
+                    subprocess.run(['systemctl', '--user', 'enable', service], check=True)
         atomic_write(manifest, json.dumps({'target': str(target), 'source': str(source),
                      'files': tx.records, 'roots': roots, 'settings_file': str(settings_file),
                      'added_module': added, 'systemd': not args.no_systemd,
@@ -330,7 +345,7 @@ def uninstall(args, paths):
     info = json.loads(file.read_text())
     changed = [record['path'] for record in info['files'] if Path(record['path']).exists()
                and digest(Path(record['path'])) != record.get('installed_hash')
-               and record['path'] != info['settings_file']]
+               and record['path'] != info['settings_file'] and Path(record['path']).name != 'active.json']
     if changed:
         raise RuntimeError('Файлы изменены после установки; сначала сохраните свои изменения: ' + ', '.join(changed))
     if args.dry_run:
@@ -359,6 +374,35 @@ def uninstall(args, paths):
     print('Переопределения запуска и запись VPN удалены. Оригинальная оболочка загрузится при следующем входе.')
     print(f'Копия и резервные файлы сохранены в {info["target"]} и {state}. VPN-процессы не останавливались.')
 
+def upgrade(args, paths):
+    _, state, _, _ = paths
+    manifest = json.loads((state / 'installation.json').read_text())
+    target = Path(manifest['target'])
+    package = target / 'addon-package'
+    if args.dry_run:
+        print('Обновится только пакет дополнения. Happ и оболочка не перезапускаются.')
+        return
+    with (state / 'install.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        stage = Path(tempfile.mkdtemp(prefix='.upgrade-', dir=target))
+        try:
+            for name in ['tools', 'overlay', 'native']:
+                shutil.copytree(REPO / name, stage / name, ignore=shutil.ignore_patterns('__pycache__', '*.so'))
+            for name in ['patches.json', 'compatibility.json', 'VERSION']:
+                shutil.copy2(REPO / name, stage / name)
+            if (package / 'commands.json').exists(): shutil.copy2(package / 'commands.json', stage / 'commands.json')
+            bridge = args.happ_bridge or package / 'native/libserpantinum-vpn-happ.so'
+            if bridge.exists(): shutil.copy2(bridge, stage / 'native/libserpantinum-vpn-happ.so')
+            saved = target / ('addon-package-backup-' + os.urandom(6).hex())
+            package.rename(saved)
+            try: stage.rename(package)
+            except Exception:
+                saved.rename(package)
+                raise
+        finally:
+            if stage.exists(): shutil.rmtree(stage)
+    print('Пакет дополнения обновлён. Загрузится при следующем запуске оболочки. VPN не изменён.')
+
 def main():
     parser = argparse.ArgumentParser(description="Установка VPN-дополнения в отдельную копию Serpantinum с проверками и откатом.")
     parser.add_argument('--source', help='Каталог Serpantinum, содержащий quickshell/')
@@ -367,6 +411,8 @@ def main():
     parser.add_argument('--happ', default='happ')
     parser.add_argument('--happ-binary', help='Сам ELF-файл Happ 4.4.8 x86_64, а не wrapper')
     parser.add_argument('--happ-config')
+    parser.add_argument('--happ-bridge', type=Path, help='Собранный native/libserpantinum-vpn-happ.so (Qt должен совпадать с Happ)')
+    parser.add_argument('--upgrade', action='store_true', help='Обновить пакет дополнения; действующие службы не перезапускаются')
     parser.add_argument('--happ-database')
     parser.add_argument('--target', type=Path)
     parser.add_argument('--state-dir', type=Path)
@@ -381,9 +427,12 @@ def main():
     config = Path(os.environ.get('XDG_CONFIG_HOME', home / '.config')).resolve()
     data = Path(os.environ.get('XDG_DATA_HOME', home / '.local/share'))
     state_home = Path(os.environ.get('XDG_STATE_HOME', home / '.local/state'))
-    target = (args.target or data / 'serpantinum-vpn').expanduser().resolve()
+    target = (args.target or data / 'serpantinum-vpn-addon').expanduser().resolve()
     state = (args.state_dir or state_home / 'serpantinum-vpn-addon').expanduser().resolve()
     paths = (target, state, config, home / '.local/bin')
+    if args.upgrade:
+        upgrade(args, paths)
+        return
     # A dry run must not create lock/state directories.
     if args.dry_run:
         (uninstall if args.uninstall else install)(args, paths)

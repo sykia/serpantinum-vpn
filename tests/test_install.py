@@ -74,6 +74,7 @@ class InstallerTests(unittest.TestCase):
             for name in installer.COMPAT['base_files']:
                 path = source / name; path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes((Path(baseline) / name).read_bytes())
+            source.chmod(0o555)
             for name in ['serpantinumd', 'serpantinum', 'happ', 'quickshell', 'node', 'nix-store']:
                 file = bindir / name
                 file.write_text('#!/usr/bin/env bash\nprintf \'{"compatible":true}\'\n')
@@ -92,9 +93,13 @@ class InstallerTests(unittest.TestCase):
             self.assertFalse((home / '.local/state').exists())
             result = subprocess.run(command, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            target = home / '.local/share/serpantinum-vpn'
+            target = home / '.local/share/serpantinum-vpn-addon'
             self.assertTrue(os.access(target / 'scripts/caching.sh', os.X_OK))
             self.assertTrue((target / 'quickshell/vpn/VpnPopup.qml').exists())
+            self.assertTrue((target / 'addon-package/tools/runtime.py').exists())
+            upgraded = subprocess.run([sys.executable, str(REPO / 'tools/install.py'), '--upgrade'], env=env, capture_output=True, text=True)
+            self.assertEqual(upgraded.returncode, 0, upgraded.stderr)
+            self.assertTrue(list(target.glob('addon-package-backup-*')))
             settings = json.loads(config.read_text()); settings['personal'] = 'changed-after-install'
             config.write_text(json.dumps(settings))
             subprocess.run([sys.executable, str(REPO / 'tools/install.py'), '--uninstall'], env=env, check=True, capture_output=True)
@@ -110,7 +115,7 @@ class InstallerTests(unittest.TestCase):
             command = command[:-1] + ['--target', str(home / 'systemd-snapshot'), '--state-dir', str(home / 'systemd-state')]
             result = subprocess.run(command, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            dropin = home / '.config/systemd/user/serpantinum.service.d/vpn-addon.conf'
+            dropin = home / '.config/systemd/user/serpantinum.service.d/zz-vpn-addon.conf'
             self.assertIn('ExecStart=', dropin.read_text())
             self.assertTrue((home / '.config/systemd/user/happ.service').exists())
             subprocess.run([sys.executable, str(REPO / 'tools/install.py'), '--uninstall', '--state-dir', str(home / 'systemd-state')], env=env, check=True, capture_output=True)

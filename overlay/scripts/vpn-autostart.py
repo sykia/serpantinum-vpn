@@ -46,10 +46,7 @@ def happ_running(binary):
                 pass
     return False
 
-def main():
-    # Avoid modifying settings or spawning a second GUI if another autostart won the race.
-    if happ_running(common.settings().get('happ_binary', '')):
-        return
+def prepare_preferences():
     conf = common.happ_config()
     conf.parent.mkdir(parents=True, exist_ok=True)
     backup = conf.with_name(conf.name + '.before-vpn-addon')
@@ -64,6 +61,11 @@ def main():
         os.replace(tmp, conf)
     finally:
         Path(tmp).unlink(missing_ok=True)
+
+def main():
+    if happ_running(common.settings().get('happ_binary', '')):
+        return
+    prepare_preferences()
     os.execv(common.executable('happ'), [common.executable('happ'), '--autostart'])
 
 if __name__ == '__main__':

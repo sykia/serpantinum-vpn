@@ -88,9 +88,9 @@ Rectangle {
         }
         Text {
             Layout.fillWidth: true
-            text: root.errorText || "TCP-пинг до сервера через текущую сеть."
+            text: VpnStatus.errorText || root.errorText || (!VpnStatus.canSelect ? "Выбор серверов загрузится при следующем запуске Happ с адаптером." : "Нажмите сервер для подключения. TCP-пинг до сервера через текущую сеть.")
             wrapMode: Text.WordWrap
-            color: root.errorText ? ThemeBackend.red : ThemeBackend.subtext0
+            color: (root.errorText || VpnStatus.errorText) ? ThemeBackend.red : ThemeBackend.subtext0
             font.family: ThemeBackend.fontFamily; font.pixelSize: root.s(11)
         }
         ListView {
@@ -107,10 +107,16 @@ Rectangle {
                 width: list.width
                 height: root.s(62)
                 radius: ThemeBackend.borderRadius
-                readonly property bool current: VpnStatus.connected && modelData.id === VpnStatus.serverId
+                readonly property bool current: modelData.id === VpnStatus.serverId && modelData.subscriptionId === VpnStatus.subscriptionId
                 color: current ? Qt.tint(ThemeBackend.surface0, Qt.rgba(ThemeBackend.blue.r, ThemeBackend.blue.g, ThemeBackend.blue.b, 0.12)) : ThemeBackend.surface0
                 border.width: current ? 1 : 0
                 border.color: ThemeBackend.blue
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: VpnStatus.canSelect && !VpnStatus.controlBusy && !row.current
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: VpnStatus.selectServer(row.modelData.subscriptionId, row.modelData.id)
+                }
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: root.s(15)
@@ -125,7 +131,7 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: root.s(4)
                         Text { Layout.fillWidth: true; text: row.modelData.name; elide: Text.ElideRight; color: ThemeBackend.text; font.family: ThemeBackend.fontFamily; font.pixelSize: root.s(13); font.bold: true }
-                        Text { text: row.modelData.subscription + (row.current ? " · Подключено" : ""); color: row.current ? ThemeBackend.blue : ThemeBackend.subtext0; font.family: ThemeBackend.fontFamily; font.pixelSize: root.s(10) }
+                        Text { text: row.modelData.subscription + (row.current ? (VpnStatus.connected ? " · Подключено" : " · Выбран") : VpnStatus.pendingServerId === row.modelData.id && VpnStatus.pendingSubscriptionId === row.modelData.subscriptionId ? " · Подключаем…" : ""); color: row.current ? ThemeBackend.blue : ThemeBackend.subtext0; font.family: ThemeBackend.fontFamily; font.pixelSize: root.s(10) }
                     }
                     Rectangle {
                         implicitWidth: root.s(90); implicitHeight: root.s(28); radius: height / 2
@@ -141,7 +147,7 @@ Rectangle {
             Layout.fillWidth: true
             Text { text: root.updated ? "Проверено: " + new Date(root.updated * 1000).toLocaleTimeString(Qt.locale("ru_RU"), "HH:mm") : "Пинг ещё не проверен"; color: ThemeBackend.subtext0; font.family: ThemeBackend.fontFamily; font.pixelSize: root.s(10) }
             Item { Layout.fillWidth: true }
-            Text { text: "Выбрать сервер в Happ ↗"; color: ThemeBackend.blue; font.family: ThemeBackend.fontFamily; font.pixelSize: root.s(11); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: VpnStatus.openHapp() } }
+            Text { text: "Открыть Happ ↗"; color: ThemeBackend.blue; font.family: ThemeBackend.fontFamily; font.pixelSize: root.s(11); MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: VpnStatus.openHapp() } }
         }
     }
 }

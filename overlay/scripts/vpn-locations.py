@@ -56,12 +56,12 @@ def main():
         cached['error'] = 'Список недоступен: нужен совместимый Happ 4.4.8 x86_64 и импортированная подписка. См. README.'
         print(json.dumps(cached, ensure_ascii=False))
         return
-    old = {row['guid']: row for row in cached.get('locations', [])}
+    old = {(row['subscriptionId'], row['id'], row.get('guid')): row for row in cached.get('locations', [])}
     for row in locations:
-        row['ping'] = old.get(row['guid'], {}).get('ping')
-        row['tested'] = old.get(row['guid'], {}).get('tested', False)
+        row['ping'] = old.get((row['subscriptionId'], row['id'], row.get('guid')), {}).get('ping')
+        row['tested'] = old.get((row['subscriptionId'], row['id'], row.get('guid')), {}).get('tested', False)
     updated = cached.get('updated', 0)
-    if '--ping' in sys.argv or not updated:
+    if '--ping' in sys.argv:
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
             for row, ping in zip(locations, pool.map(measure, locations)):
                 row['ping'] = ping
